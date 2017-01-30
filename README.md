@@ -9,3 +9,5 @@ Works on Python 2.7+ and 3.5+
 
 ###Run:
     python csv-export.py
+    
+python3 -m virtualenv env
