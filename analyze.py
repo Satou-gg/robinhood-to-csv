@@ -163,6 +163,10 @@ def summary_table(content_list):
 
             summary[symbol]['position'] = 0
             summary[symbol]['gross_value'] = 0
+
+            summary[symbol]['trade_buy_value'] = 0
+            summary[symbol]['trade_sell_value'] = 0
+
             summary[symbol]['net_value'] = 0
             summary[symbol]['trade'] = 0
 
@@ -214,10 +218,15 @@ def summary_table(content_list):
                 summary[symbol]['position'] = summary[symbol]['position'] - quantity
                 summary[symbol]['gross_value'] = summary[symbol]['gross_value'] - gross_value
 
+                summary[symbol]['trade_buy_value'] = summary[symbol]['trade_buy_value'] + gross_value
+
+
             elif side == 'sell':
                 summary[symbol]['sell_execs'] = summary[symbol]['sell_execs'] + 1
                 summary[symbol]['position'] = summary[symbol]['position'] + quantity
                 summary[symbol]['gross_value'] = summary[symbol]['gross_value'] + gross_value
+
+                summary[symbol]['trade_sell_value'] = summary[symbol]['trade_sell_value'] + gross_value
             else:
                 print('error')
 
@@ -249,19 +258,26 @@ def summary_table(content_list):
                     else:
                         summary[symbol]['average_winning_trades'] = trade_value
 
-
                 current_trade = {}
                 current_trade['trade_volume'] = summary[symbol]['trade_volume']
                 current_trade['trade_value'] = trade_value
                 current_trade['end_day'] =  transaction_obj.updated_at_day
                 current_trade['end_date'] =  '{}'.format(transaction_obj.updated_at)
+                current_trade['trade_buy_value'] = summary[symbol]['trade_buy_value']
+                current_trade['trade_sell_value'] = summary[symbol]['trade_sell_value']
+
+                current_trade['percent'] = (trade_value / summary[symbol]['trade_buy_value']) * 100
 
                 summary[symbol]['trades'].append(current_trade)
                 summary[symbol]['gross_value'] = 0.0
                 summary[symbol]['trade_volume'] = 0.0
+                summary[symbol]['trade_buy_value'] = 0
+                summary[symbol]['trade_sell_value'] = 0
 
             if summary[symbol]['position'] == 0 and summary[symbol]['gross_value'] == 0:
                 summary[symbol]['open'] = False
+
+
 
                 current_sum = 0
                 for current_record in summary[symbol]['trades']:
