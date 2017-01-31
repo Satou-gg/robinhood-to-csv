@@ -2,9 +2,9 @@
 # Purpose of this script is to ana
 import json
 import dateutil.parser
+import operator
 
 fname = 'robinhood.csv'
-
 
 class TransactionObjParser(object):
 
@@ -54,16 +54,18 @@ class TransactionObjParser(object):
             self.average_price = None
 
         # last_transaction_at, updated_at, created_at
-        self.created_at = dict_obj.get('created_at')
-        self.created_at_obj = dateutil.parser.parse(self.created_at)
-        self.created_at_day = self.created_at_obj.strftime("%A")
+        self.created_at_raw = dict_obj.get('created_at')
+        self.created_at = dateutil.parser.parse(self.created_at_raw)
+        self.created_at_day = self.created_at.strftime("%A")
 
-        self.updated_at = dict_obj.get('updated_at')
-        self.updated_at_obj = dateutil.parser.parse(self.updated_at)
-        self.updated_at_day = self.updated_at_obj.strftime("%A")
+        self.updated_at_raw = dict_obj.get('updated_at')
+        self.updated_at = dateutil.parser.parse(self.updated_at_raw)
+        self.updated_at_day = self.updated_at.strftime("%A")
+        self.updated_at_month = self.updated_at.strftime("%B")
+        self.updated_at_year = self.updated_at.strftime("%Y")
 
-        self.last_transaction_at = dict_obj.get('last_transaction_at')
-        self.last_transaction_at_obj = dateutil.parser.parse(self.last_transaction_at)
+        self.last_transaction_at_raw = dict_obj.get('last_transaction_at')
+        self.last_transaction_at = dateutil.parser.parse(self.last_transaction_at_raw)
 
 
 def read_file_into_transaction_objs(filename):
@@ -82,11 +84,13 @@ def read_file_into_transaction_objs(filename):
                 current_line_list = [current_string.strip() for current_string in current_line_list]
                 record = dict(zip(first_line_list, current_line_list))
 
-                #print(record)
-                output.append(TransactionObjParser(record))
+                output.append(record)
 
             line_count = line_count + 1
-        return output
+
+    output.sort(key=operator.itemgetter('created_at'))  # Order by date
+    output = [TransactionObjParser(record) for record in output]  # Convert into list of TransactionObjParser
+    return output
 
 
 def print_out(content_list):
@@ -135,6 +139,8 @@ def summary_table(content_list):
     summary = {}
     transactions = {}
 
+    trades_records = []
+
     for transaction_obj in content_list:
         symbol = transaction_obj.symbol
         side = transaction_obj.side
@@ -150,15 +156,32 @@ def summary_table(content_list):
         if symbol not in summary:
             summary[symbol] = {}
             summary[symbol]['volume'] = 0.0
-            summary[symbol]['buy_execs'] = 0
+
             summary[symbol]['execs'] = 0
+            summary[symbol]['buy_execs'] = 0
             summary[symbol]['sell_execs'] = 0
+
             summary[symbol]['position'] = 0
             summary[symbol]['gross_value'] = 0
-            summary[symbol]['net_worth'] = 0
+            summary[symbol]['net_value'] = 0
             summary[symbol]['trade'] = 0
+
+            summary[symbol]['cumulative_gain'] = 0
+            summary[symbol]['cumulative_loss'] = 0
+
             summary[symbol]['winning_trades'] = 0
             summary[symbol]['lossing_trades'] = 0
+
+            summary[symbol]['biggest_winning_trade'] = 0
+            summary[symbol]['biggest_losing_trade'] = 0
+
+            summary[symbol]['average_winning_trades'] = None
+            summary[symbol]['average_lossing_trades'] = None
+
+            summary[symbol]['trade_volume'] = 0
+
+            summary[symbol]['win_loss_ratio'] = 0
+            summary[symbol]['win_loss_value_ratio'] = 0
 
             summary[symbol]['trades'] = []
             transactions[symbol] = []
@@ -174,18 +197,23 @@ def summary_table(content_list):
         if ignore_line is False:
             gross_value = quantity * price
             summary[symbol]['volume'] = summary[symbol]['volume']  + quantity
+            summary[symbol]['trade_volume'] = summary[symbol]['trade_volume']  + quantity
 
-            history_string = '{} - {} {} at {:06.3f} (Q:{},P:{})'.format(transaction_obj.created_at, transaction_obj.type.capitalize(), transaction_obj.side.capitalize(), gross_value, quantity, price)
+            history_string = '{} - {} {} at {:06.3f} (Q:{},P:{})'.format(transaction_obj.created_at,
+                                                                         transaction_obj.type.capitalize(),
+                                                                         transaction_obj.side.capitalize(),
+                                                                         gross_value,
+                                                                         quantity,
+                                                                         price)
             transactions[symbol].append(history_string)
-            # print(side)
-            # if symbol == 'THLD' and summary[symbol]['position'] >= 0:
-            #      print(dict_obj)
+
             summary[symbol]['execs'] = summary[symbol]['execs'] + 1
 
             if side == 'buy':
                 summary[symbol]['buy_execs'] = summary[symbol]['buy_execs'] + 1
                 summary[symbol]['position'] = summary[symbol]['position'] - quantity
                 summary[symbol]['gross_value'] = summary[symbol]['gross_value'] - gross_value
+
             elif side == 'sell':
                 summary[symbol]['sell_execs'] = summary[symbol]['sell_execs'] + 1
                 summary[symbol]['position'] = summary[symbol]['position'] + quantity
@@ -193,21 +221,53 @@ def summary_table(content_list):
             else:
                 print('error')
 
+            # When the position becames 0 it means that all the brought shares are sold
             if summary[symbol]['position'] ==  0.0:
                 summary[symbol]['trade'] = summary[symbol]['trade'] + 1
                 trade_value = summary[symbol]['gross_value']
 
                 if trade_value < 0:
+                    summary[symbol]['cumulative_loss'] = summary[symbol]['cumulative_loss'] + summary[symbol]['gross_value']
                     summary[symbol]['lossing_trades'] = summary[symbol]['lossing_trades'] + 1
+
+                    if summary[symbol]['biggest_losing_trade'] > trade_value:
+                        summary[symbol]['biggest_losing_trade'] = trade_value
+
+                    if summary[symbol]['average_lossing_trades']:
+                        summary[symbol]['average_lossing_trades'] = (summary[symbol]['average_lossing_trades']  + trade_value) / 2.0
+                    else:
+                        summary[symbol]['average_lossing_trades'] = trade_value
                 else:
+                    summary[symbol]['cumulative_gain'] = summary[symbol]['cumulative_gain'] + summary[symbol]['gross_value']
                     summary[symbol]['winning_trades'] = summary[symbol]['winning_trades'] + 1
 
-                summary[symbol]['trades'].append(trade_value)
+                    if summary[symbol]['biggest_winning_trade'] < trade_value:
+                        summary[symbol]['biggest_winning_trade'] = trade_value
+
+                    if summary[symbol]['average_winning_trades']:
+                        summary[symbol]['average_winning_trades'] = (summary[symbol]['average_winning_trades']  + trade_value) / 2.0
+                    else:
+                        summary[symbol]['average_winning_trades'] = trade_value
+
+
+                current_trade = {}
+                current_trade['trade_volume'] = summary[symbol]['trade_volume']
+                current_trade['trade_value'] = trade_value
+                current_trade['end_day'] =  transaction_obj.updated_at_day
+                current_trade['end_date'] =  '{}'.format(transaction_obj.updated_at)
+
+                summary[symbol]['trades'].append(current_trade)
                 summary[symbol]['gross_value'] = 0.0
+                summary[symbol]['trade_volume'] = 0.0
 
             if summary[symbol]['position'] == 0 and summary[symbol]['gross_value'] == 0:
                 summary[symbol]['open'] = False
-                summary[symbol]['net_worth'] = sum(summary[symbol]['trades'])
+
+                current_sum = 0
+                for current_record in summary[symbol]['trades']:
+                    current_trade_value = current_record['trade_value']
+                    current_sum = current_sum + current_trade_value
+                summary[symbol]['net_value'] = current_sum
             else:
                 summary[symbol]['open'] = True
 
@@ -218,6 +278,10 @@ def summary_table(content_list):
         'total_trades': 0,
         'total_winning_trades':0,
         'total_lossing_trades':0,
+
+        'total_cumulative_gain':0,
+        'total_cumulative_loss':0,
+
         'total_gain_loss': 0 ,
     }
     for key in summary:
@@ -226,11 +290,16 @@ def summary_table(content_list):
         execs = symbol_dict['execs']
         buy_execs = symbol_dict['buy_execs']
         sell_execs = symbol_dict['sell_execs']
-        lossing_trades = symbol_dict['lossing_trades']
-        winning_trades = symbol_dict['winning_trades']
+
         trade = symbol_dict['trade']
         volume = symbol_dict['volume']
-        net_worth = symbol_dict['net_worth']
+        net_worth = symbol_dict['net_value']
+
+        cumulative_gain = symbol_dict['cumulative_gain']
+        cumulative_loss = symbol_dict['cumulative_loss']
+
+        lossing_trades = symbol_dict['lossing_trades']
+        winning_trades = symbol_dict['winning_trades']
 
         # Adding
         stats['total_execs'] = stats['total_execs'] + execs
@@ -238,6 +307,12 @@ def summary_table(content_list):
         stats['total_sell_execs'] = stats['total_sell_execs'] + sell_execs
         stats['total_trades'] = stats['total_trades'] + trade
         stats['total_gain_loss'] = stats['total_gain_loss'] + net_worth
+
+        stats['total_cumulative_gain'] = stats['total_cumulative_gain'] + cumulative_gain
+        stats['total_cumulative_loss'] = stats['total_cumulative_loss'] + cumulative_loss
+
+        stats['total_winning_trades'] = stats['total_winning_trades'] + winning_trades
+        stats['total_lossing_trades'] = stats['total_lossing_trades'] + lossing_trades
 
     output = {}
     output['summary'] = summary
