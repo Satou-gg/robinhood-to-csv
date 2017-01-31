@@ -277,13 +277,20 @@ def summary_table(content_list):
             if summary[symbol]['position'] == 0 and summary[symbol]['gross_value'] == 0:
                 summary[symbol]['open'] = False
 
-
-
                 current_sum = 0
+                total_trade_buy_value = 0
+                total_trade_sell_value = 0
+
                 for current_record in summary[symbol]['trades']:
-                    current_trade_value = current_record['trade_value']
-                    current_sum = current_sum + current_trade_value
+                    current_sum = current_sum + current_record['trade_value']
+                    total_trade_buy_value = total_trade_buy_value + current_record['trade_buy_value']
+                    total_trade_sell_value = total_trade_sell_value + current_record['trade_sell_value']
+
                 summary[symbol]['net_value'] = current_sum
+                summary[symbol]['total_trade_buy_value'] = total_trade_buy_value
+                summary[symbol]['total_trade_sell_value'] = total_trade_sell_value
+                # TODO: Normization of the percent,  if net_value = 0 does it really add to percent
+                summary[symbol]['total_percent'] = (current_sum / total_trade_buy_value)*100
             else:
                 summary[symbol]['open'] = True
 
