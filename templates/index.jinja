@@ -1,0 +1,75 @@
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Stock Summary</title>
+        <meta name="description" content="Summary and Stats" />
+    </head>
+
+    <body>
+        <h1>Overall Stats</h1>
+
+        <table>
+            {% for key, value in stats.items() | sorted %}
+                <tr>
+                  <th>{{ key }}</th>
+                  <th>{{ value }}</th>
+                </tr>
+             {% endfor %}
+        </table>
+
+        <hr>
+
+        <h1>Per Stock Summary</h1>
+            {% for key, value in summary.items() | sorted %}
+                   <h2>{{ key }}</h2>
+
+                   <table>
+                       {% for inner_key, inner_value in value.items() | sorted %}
+                           {% if inner_key != 'trades' %}
+                               <tr>
+                                 <th>{{ inner_key }}</th>
+                                 <th>{{ inner_value }}</th>
+                               </tr>
+                            {% endif %}
+
+
+                        {% endfor %}
+                   </table>
+             {% endfor %}
+
+        <hr>
+        <h1>Transactions</h1>
+        {% for key, value in transactions.items() | sorted %}
+               <h2>{{ key }}</h2>
+               <!-- <dd>{{ value }}</dd> -->
+
+               {% for current_value in value %}
+                    <p>{{ current_value }}
+               {% endfor %}
+         {% endfor %}
+
+        <hr>
+
+
+        <h1>Overall Gain Loss</h1>
+            {% for key, value in day_year_gain_loss.items() | sorted %}
+                   <h2>{{ key }}</h2>
+                   <!-- <dd>{{ value }}</dd> -->
+
+                   <table>
+                       {% for inner_key, inner_value in value.items() | sorted %}
+
+                               <tr>
+                                 <th>{{ inner_key }}</th>
+                                 <th>{{ inner_value }}</th>
+                               </tr>
+
+
+
+                        {% endfor %}
+                   </table>
+             {% endfor %}
+    </body>
+</html>
