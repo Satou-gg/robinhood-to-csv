@@ -41,14 +41,37 @@ Largest loss
 Cumulative Gain & Loss over time
 
 Unrealized Gain & Loss over time
+
+Take file name as argument instead of just robinhood.csv
+
+Transactions by day
+
+Per Day Summary
+
+Daily Wins and Losses
+
+fixed formulas for average winning trades and average lossing trades
 """
 import json
 import dateutil.parser
 import operator
 import jinja2
+import sys
 from collections import OrderedDict
 
-FILE_NAME = 'robinhood.csv'
+#
+#take file name as argument when running from command line
+#
+#example:
+#python analyze.py myrobinhoodtrades_2017_02_12.csv > mytrades20170212.html
+#
+#this analyzes myrobinhoodtrades_2017_02_12.csv instead of robinhod.csv. useful when using csv-export.py and renaming.
+#
+
+if len(sys.argv) > 1:
+    FILE_NAME = sys.argv[1]
+else:
+    FILE_NAME = 'robinhood.csv'
 
 
 class TransactionObjParser(object):
@@ -102,15 +125,15 @@ class TransactionObjParser(object):
         # last_transaction_at, updated_at, created_at
         self.created_at_raw = dict_obj.get('created_at')
         self.created_at = dateutil.parser.parse(self.created_at_raw)
-        self.created_at_day = self.created_at.strftime("%A")  # Weekday as locale’s full name.	Monday
+        self.created_at_day = self.created_at.strftime("%A")  # Weekday as locale’s full name.  Monday
 
         self.updated_at_raw = dict_obj.get('updated_at')
         self.updated_at = dateutil.parser.parse(self.updated_at_raw)
 
-        self.updated_at_day = self.updated_at.strftime( "%A")   # Weekday full name.	Monday
+        self.updated_at_day = self.updated_at.strftime( "%A")   # Weekday full name.    Monday
         self.updated_at_day_year = self.updated_at.strftime( "%j")  # Day of the year
         self.updated_at_day_number = self.updated_at.strftime( "%d")  # Day of the month as a zero-padded decimal number
-        self.updated_at_month = self.updated_at.strftime("%B")  # Month full name.	September
+        self.updated_at_month = self.updated_at.strftime("%B")  # Month full name.  September
         self.updated_at_month_number = self.updated_at.strftime("%m")  # Month Number
         self.updated_at_year = self.updated_at.strftime("%Y")  # Year with century
         # Hour (24-hour clock) as a zero-padded decimal number
@@ -161,7 +184,9 @@ def summary_table(content_list):
     Summary Json
     """
     summary = OrderedDict()
+    summaryday = OrderedDict()
     transactions = OrderedDict()
+    transactionsday = OrderedDict()
 
     trades_records = []
 
@@ -172,6 +197,12 @@ def summary_table(content_list):
         quantity = transaction_obj.cumulative_quantity
         price = transaction_obj.price
         updated_day = transaction_obj.updated_at_day
+
+        updated_at_day_year = transaction_obj.updated_at_day_year
+
+
+
+
         #
         # print(transaction_obj.created_at)
         # print(transaction_obj.updated_at_day)
@@ -214,6 +245,44 @@ def summary_table(content_list):
             summary[symbol]['trades'] = []
             transactions[symbol] = []
 
+        if updated_at_day_year not in summaryday:
+            summaryday[updated_at_day_year] = OrderedDict()
+            summaryday[updated_at_day_year]['volume'] = 0.0
+
+            summaryday[updated_at_day_year]['execs'] = 0
+            summaryday[updated_at_day_year]['buy_execs'] = 0
+            summaryday[updated_at_day_year]['sell_execs'] = 0
+
+            summaryday[updated_at_day_year]['position'] = 0
+            summaryday[updated_at_day_year]['gross_value'] = 0
+
+            summaryday[updated_at_day_year]['trade_buy_value'] = 0
+            summaryday[updated_at_day_year]['trade_sell_value'] = 0
+
+            summaryday[updated_at_day_year]['net_value'] = 0
+            summaryday[updated_at_day_year]['trade'] = 0
+
+            summaryday[updated_at_day_year]['cumulative_gain'] = 0
+            summaryday[updated_at_day_year]['cumulative_loss'] = 0
+
+            summaryday[updated_at_day_year]['winning_trades'] = 0
+            summaryday[updated_at_day_year]['lossing_trades'] = 0
+
+            summaryday[updated_at_day_year]['biggest_winning_trade'] = 0
+            summaryday[updated_at_day_year]['biggest_losing_trade'] = 0
+
+            summaryday[updated_at_day_year]['average_winning_trades'] = None
+            summaryday[updated_at_day_year]['average_lossing_trades'] = None
+
+            summaryday[updated_at_day_year]['trade_volume'] = 0
+
+            summaryday[updated_at_day_year]['win_loss_ratio'] = 0
+            summaryday[updated_at_day_year]['win_loss_value_ratio'] = 0
+
+            summaryday[updated_at_day_year]['trades'] = []
+            transactionsday[updated_at_day_year] = []
+
+        
         ignore_line = True
 
         if state == 'filled':
@@ -228,6 +297,12 @@ def summary_table(content_list):
             summary[symbol]['trade_volume'] = summary[
                 symbol]['trade_volume'] + quantity
 
+
+            summaryday[updated_at_day_year]['volume'] = summaryday[updated_at_day_year]['volume'] + quantity
+            summaryday[updated_at_day_year]['trade_volume'] = summaryday[updated_at_day_year]['trade_volume'] + quantity
+
+
+
             history_string = '{} - {} {} at {:06.3f} (Q:{},P:{})'.format(transaction_obj.created_at,
                                                                          transaction_obj.type.capitalize(),
                                                                          transaction_obj.side.capitalize(),
@@ -236,7 +311,15 @@ def summary_table(content_list):
                                                                          price)
             transactions[symbol].append(history_string)
 
+
+            transactionsday[updated_at_day_year].append(history_string)
+
+
             summary[symbol]['execs'] = summary[symbol]['execs'] + 1
+
+
+            summaryday[updated_at_day_year]['execs'] = summaryday[updated_at_day_year]['execs'] + 1
+
 
             if side == 'buy':
                 summary[symbol]['buy_execs'] = summary[symbol]['buy_execs'] + 1
@@ -248,6 +331,15 @@ def summary_table(content_list):
                 summary[symbol]['trade_buy_value'] = summary[
                     symbol]['trade_buy_value'] + gross_value
 
+
+
+                summaryday[updated_at_day_year]['buy_execs'] = summaryday[updated_at_day_year]['buy_execs'] + 1
+                summaryday[updated_at_day_year]['position'] = summaryday[updated_at_day_year]['position'] - quantity
+                summaryday[updated_at_day_year]['gross_value'] = summaryday[updated_at_day_year]['gross_value'] - gross_value
+
+                summaryday[updated_at_day_year]['trade_buy_value'] = summaryday[updated_at_day_year]['trade_buy_value'] + gross_value
+
+
             elif side == 'sell':
                 summary[symbol]['sell_execs'] = summary[
                     symbol]['sell_execs'] + 1
@@ -258,6 +350,14 @@ def summary_table(content_list):
 
                 summary[symbol]['trade_sell_value'] = summary[
                     symbol]['trade_sell_value'] + gross_value
+
+
+                summaryday[updated_at_day_year]['sell_execs'] = summaryday[updated_at_day_year]['sell_execs'] + 1
+                summaryday[updated_at_day_year]['position'] = summaryday[updated_at_day_year]['position'] + quantity
+                summaryday[updated_at_day_year]['gross_value'] = summaryday[updated_at_day_year]['gross_value'] + gross_value
+
+                summaryday[updated_at_day_year]['trade_sell_value'] = summaryday[updated_at_day_year]['trade_sell_value'] + gross_value
+
             else:
                 print('error')
 
@@ -269,32 +369,24 @@ def summary_table(content_list):
 
                 if trade_value < 0:
                     summary[symbol]['cumulative_loss'] = summary[symbol][
-                        'cumulative_loss'] + summary[symbol]['gross_value']
+                        'cumulative_loss'] + trade_value
                     summary[symbol]['lossing_trades'] = summary[
                         symbol]['lossing_trades'] + 1
 
                     if summary[symbol]['biggest_losing_trade'] > trade_value:
                         summary[symbol]['biggest_losing_trade'] = trade_value
 
-                    if summary[symbol]['average_lossing_trades']:
-                        summary[symbol]['average_lossing_trades'] = (
-                            summary[symbol]['average_lossing_trades'] + trade_value) / 2.0
-                    else:
-                        summary[symbol]['average_lossing_trades'] = trade_value
+                    summary[symbol]['average_lossing_trades'] = summary[symbol]['cumulative_loss'] / summary[symbol]['lossing_trades']
                 else:
                     summary[symbol]['cumulative_gain'] = summary[symbol][
-                        'cumulative_gain'] + summary[symbol]['gross_value']
+                        'cumulative_gain'] + trade_value
                     summary[symbol]['winning_trades'] = summary[
                         symbol]['winning_trades'] + 1
 
                     if summary[symbol]['biggest_winning_trade'] < trade_value:
                         summary[symbol]['biggest_winning_trade'] = trade_value
 
-                    if summary[symbol]['average_winning_trades']:
-                        summary[symbol]['average_winning_trades'] = (
-                            summary[symbol]['average_winning_trades'] + trade_value) / 2.0
-                    else:
-                        summary[symbol]['average_winning_trades'] = trade_value
+                    summary[symbol]['average_winning_trades'] = summary[symbol]['cumulative_gain'] / summary[symbol]['winning_trades']
 
                 current_trade = OrderedDict()
                 current_trade['trade_volume'] = summary[symbol]['trade_volume']
@@ -352,6 +444,87 @@ def summary_table(content_list):
             else:
                 summary[symbol]['open'] = True
 
+
+
+
+            if summaryday[updated_at_day_year]['position'] == 0.0:
+                summaryday[updated_at_day_year]['trade'] = summaryday[updated_at_day_year]['trade'] + 1
+                trade_value = summaryday[updated_at_day_year]['gross_value']
+
+                if trade_value < 0:
+                    summaryday[updated_at_day_year]['cumulative_loss'] = summaryday[updated_at_day_year][
+                        'cumulative_loss'] + trade_value
+                    summaryday[updated_at_day_year]['lossing_trades'] = summaryday[updated_at_day_year]['lossing_trades'] + 1
+
+                    if summaryday[updated_at_day_year]['biggest_losing_trade'] > trade_value:
+                        summaryday[updated_at_day_year]['biggest_losing_trade'] = trade_value
+
+                    summaryday[updated_at_day_year]['average_lossing_trades'] = summaryday[updated_at_day_year]['cumulative_loss'] / summaryday[updated_at_day_year]['lossing_trades']
+                else:
+                    summaryday[updated_at_day_year]['cumulative_gain'] = summaryday[updated_at_day_year][
+                        'cumulative_gain'] + trade_value
+                    summaryday[updated_at_day_year]['winning_trades'] = summaryday[updated_at_day_year]['winning_trades'] + 1
+
+                    if summaryday[updated_at_day_year]['biggest_winning_trade'] < trade_value:
+                        summaryday[updated_at_day_year]['biggest_winning_trade'] = trade_value
+
+                    summaryday[updated_at_day_year]['average_winning_trades'] = summaryday[updated_at_day_year]['cumulative_gain'] / summaryday[updated_at_day_year]['winning_trades']
+
+                current_trade = OrderedDict()
+                current_trade['trade_volume'] = summaryday[updated_at_day_year]['trade_volume']
+                current_trade['trade_value'] = trade_value
+                current_trade['symbol'] = symbol
+                current_trade['end_day'] = transaction_obj.updated_at_day
+                current_trade['end_day_of_year'] = transaction_obj.updated_at_day_year
+
+                current_trade[
+                    'end_month'] = transaction_obj.updated_at_month_number
+                current_trade['end_year'] = transaction_obj.updated_at_year
+                current_trade['end_week'] = transaction_obj.updated_at_week
+                current_trade['end_hour'] = transaction_obj.updated_at_hour
+                current_trade['end_date'] = '{}'.format(
+                    transaction_obj.updated_at)
+
+                current_trade['trade_buy_value'] = summaryday[updated_at_day_year]['trade_buy_value']
+                current_trade['trade_sell_value'] = summaryday[updated_at_day_year]['trade_sell_value']
+                current_trade['stock_price'] = transaction_obj.price
+
+                current_trade['percent'] = (
+                    trade_value / summaryday[updated_at_day_year]['trade_buy_value']) * 100
+
+                summaryday[updated_at_day_year]['trades'].append(current_trade)
+                summaryday[updated_at_day_year]['gross_value'] = 0.0
+                summaryday[updated_at_day_year]['trade_volume'] = 0.0
+                summaryday[updated_at_day_year]['trade_buy_value'] = 0.0
+                summaryday[updated_at_day_year]['trade_sell_value'] = 0.0
+
+            if summaryday[updated_at_day_year]['position'] == 0 and summaryday[updated_at_day_year]['gross_value'] == 0:
+                summaryday[updated_at_day_year]['open'] = False
+
+                current_sum = 0
+                total_trade_buy_value = 0
+                total_trade_sell_value = 0
+
+                for current_record in summaryday[updated_at_day_year]['trades']:
+                    current_sum = current_sum + current_record['trade_value']
+                    total_trade_buy_value = total_trade_buy_value + \
+                        current_record['trade_buy_value']
+                    total_trade_sell_value = total_trade_sell_value + \
+                        current_record['trade_sell_value']
+
+                summaryday[updated_at_day_year]['net_value'] = current_sum
+                summaryday[updated_at_day_year]['total_trade_buy_value'] = total_trade_buy_value
+                summaryday[updated_at_day_year][
+                    'total_trade_sell_value'] = total_trade_sell_value
+                # TODO: Normization of the percent,  if net_value = 0 does it
+                # really add to percent
+                summaryday[updated_at_day_year]['total_percent'] = (
+                    current_sum / total_trade_buy_value) * 100
+            else:
+                summaryday[updated_at_day_year]['open'] = True
+
+
+
     day_year_gain_loss = {
         'day_number_of_year': OrderedDict(),
         'time_in_day': OrderedDict(),
@@ -386,7 +559,7 @@ def summary_table(content_list):
                     'week_number_of_year'][week_number] + trade_value
 
             # Week Number
-            hour_of_day = int(trade['end_hour'])
+            hour_of_day = int(trade['end_hour']) - 5
             if hour_of_day not in day_year_gain_loss['hour_of_day']:
                 day_year_gain_loss['hour_of_day'][hour_of_day] = trade_value
             else:
@@ -400,6 +573,49 @@ def summary_table(content_list):
             else:
                 day_year_gain_loss['month'][month_string] = day_year_gain_loss[
                     'month'][month_string] + trade_value
+
+    day_year_wins_losses = {
+        'day_number_of_year': OrderedDict(),
+        'day_number_of_year_wins': OrderedDict(),
+        'day_number_of_year_losses': OrderedDict(),
+        'day_number_of_year_winrate': OrderedDict(),
+        'day_number_of_year_total_trades': OrderedDict(),
+        #'day_number_of_year_average_winning_trades': OrderedDict(),
+        #'day_number_of_year_average_lossing_trades': OrderedDict()
+    }
+
+    for key in summaryday:
+        #trades_list = summaryday[key]['trades']
+
+        #for trade in trades_list:
+            #trade = summaryday[key]
+        wins = summaryday[key]['winning_trades']
+        losses = summaryday[key]['lossing_trades']
+        total_trades = summaryday[key]['winning_trades'] + summaryday[key]['lossing_trades']
+        #average_winning_trades = summaryday[key]['average_winning_trades']
+        #average_lossing_trades = summaryday[key]['average_lossing_trades']
+
+
+
+        if total_trades > 0:
+            winrate = wins / total_trades
+        else:
+            winrate = 'no trades'
+
+        # Day of Year, Wins, Losses, Winrate %
+        day_of_year = int(key)
+        if day_of_year not in day_year_wins_losses['day_number_of_year']:
+            day_year_wins_losses['day_number_of_year_wins'][day_of_year] = wins
+            day_year_wins_losses['day_number_of_year_losses'][day_of_year] = losses
+            day_year_wins_losses['day_number_of_year_winrate'][day_of_year] = winrate
+            day_year_wins_losses['day_number_of_year_total_trades'][day_of_year] = total_trades
+            #day_year_wins_losses['day_number_of_year_average_winning_trades'] = average_winning_trades
+            #day_year_wins_losses['day_number_of_year_average_lossing_trades'] = average_lossing_trades
+        #else:
+        #    day_year_wins_losses['day_number_of_year'][day_of_year] = day_year_wins_losses[
+        #        'day_number_of_year'][day_of_year] + trade_value
+
+
 
     stats = {
         'total_execs': 0,
@@ -454,26 +670,21 @@ def summary_table(content_list):
         stats['total_lossing_trades'] = stats[
             'total_lossing_trades'] + lossing_trades
 
-        if average_winning_trades is not None:
-            if stats['average_winning_trades']:
-                stats['average_winning_trades'] = (stats['average_winning_trades'] + average_winning_trades) / 2.0
-            else:
-                stats['average_winning_trades'] = average_winning_trades
-
-        if average_lossing_trades is not None:
-            if stats['average_lossing_trades']:
-                stats['average_lossing_trades'] = (stats['average_lossing_trades'] + average_lossing_trades) / 2.0
-            else:
-                stats['average_lossing_trades'] = average_lossing_trades
-
         summary[symbol]['average_winning_trades'] = None
         summary[symbol]['average_lossing_trades'] = None
 
+    stats['average_winning_trades'] = stats['total_cumulative_gain'] / stats['total_winning_trades']
+    stats['average_lossing_trades'] = stats['total_cumulative_loss'] / stats['total_lossing_trades']
+
     output = OrderedDict()
     output['summary'] = summary
+    output['summaryday'] = summaryday
     output['transactions'] = transactions
+    output['transactionsday'] = transactionsday
     output['stats'] = stats
     output['day_year_gain_loss'] = day_year_gain_loss
+
+    output['day_year_wins_losses'] = day_year_wins_losses
 
     return output
 
@@ -497,3 +708,4 @@ template = templateEnv.get_template(TEMPLATE_FILE)
 outputText = template.render(summary_table_results)
 
 print(outputText)
+

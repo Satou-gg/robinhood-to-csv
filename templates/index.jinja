@@ -37,10 +37,12 @@
 
                         {% endfor %}
                    </table>
+                   
              {% endfor %}
 
         <hr>
-        <h1>Transactions</h1>
+        
+        <h1>Transactions by Stock</h1>
         {% for key, value in transactions.items() | sorted %}
                <h2>{{ key }}</h2>
                <!-- <dd>{{ value }}</dd> -->
@@ -48,8 +50,63 @@
                {% for current_value in value %}
                     <p>{{ current_value }}
                {% endfor %}
+
          {% endfor %}
 
+        <hr>
+
+        <h1>Transactions by Day</h1>
+        {% for key, value in transactionsday.items() | sorted %}
+               <h2>{{ key }}</h2>
+               <!-- <dd>{{ value }}</dd> -->
+
+               {% for current_value in value %}
+                    <p>{{ current_value }}
+               {% endfor %}
+
+         {% endfor %}
+
+        <hr>
+
+        <h1>Per Day Summary</h1>
+            {% for key, value in summaryday.items() | sorted %}
+                   <h2>{{ key }}</h2>
+
+                   <table>
+                       {% for inner_key, inner_value in value.items() | sorted %}
+                           {% if inner_key != 'trades' %}
+                               <tr>
+                                 <th>{{ inner_key }}</th>
+                                 <th>{{ inner_value }}</th>
+                               </tr>
+                            {% endif %}
+
+
+                        {% endfor %}
+                   </table>
+                   
+             {% endfor %}
+
+        <hr>
+
+        <h1>Daily Wins and Losses</h1>
+            {% for key, value in day_year_wins_losses.items() | sorted %}
+                   <h2>{{ key }}</h2>
+                   <!-- <dd>{{ value }}</dd> -->
+
+                   <table>
+                       {% for inner_key, inner_value in value.items() | sorted %}
+
+                               <tr>
+                                 <th>{{ inner_key }}</th>
+                                 <th>{{ inner_value }}</th>
+                               </tr>
+
+
+
+                        {% endfor %}
+                   </table>
+             {% endfor %}
         <hr>
 
 
